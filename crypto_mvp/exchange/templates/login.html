@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login | Coin Market</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #0f172a;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .login-box {
+      background: #1e293b;
+      padding: 40px;
+      border-radius: 10px;
+      width: 350px;
+      text-align: center;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    }
+
+    h2 { color: #38bdf8; margin-bottom: 20px; }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: none;
+      background: #0f172a;
+      color: white;
+    }
+
+    button {
+      width: 100%;
+      background: #38bdf8;
+      color: black;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover { background: #0ea5e9; }
+
+    a { color: #38bdf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .message { color: #f87171; margin-top: 10px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h2>{% if register %}Register{% else %}Login{% endif %}</h2>
+
+    {% if not register %}
+    <form method="POST">
+      {% csrf_token %}
+      <input type="text" name="username" placeholder="Username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+    <p style="margin-top:15px;">Don't have an account? <a href="?register=true">Register</a></p>
+    {% else %}
+      <p>{{ message }}</p>
+      <p><a href="/login/">Back to Login</a></p>
+    {% endif %}
+
+    {% if message and not register %}
+      <p class="message">{{ message }}</p>
+    {% endif %}
+  </div>
+</body>
+</html>

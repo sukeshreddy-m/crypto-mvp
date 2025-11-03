@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Crypto Market | Coin Market</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #0f172a; color: #fff; margin: 0; padding: 0; }
+    .topbar { background: #1e293b; display:flex; justify-content:space-between; align-items:center; padding:15px 40px; box-shadow:0 2px 5px rgba(0,0,0,0.2); position:sticky; top:0; z-index:10; }
+    .brand { font-size:22px; font-weight:bold; color:#38bdf8; text-decoration:none; }
+    .login-btn { background:#38bdf8; border:none; color:#000; padding:8px 18px; border-radius:5px; font-weight:bold; cursor:pointer; transition:0.3s; }
+    .login-btn:hover { background:#0ea5e9; }
+    h1 { text-align:center; color:#38bdf8; margin-top:30px; }
+    form { text-align:center; margin:20px auto; }
+    input[type="text"]{padding:10px;width:250px;border-radius:4px;border:none;background:#1e293b;color:#fff;}
+    select{padding:10px;border-radius:4px;border:none;background:#1e293b;color:#fff;margin-left:10px;}
+    button{padding:10px 20px;border:none;border-radius:4px;background:#38bdf8;color:#000;font-weight:bold;cursor:pointer;margin-left:10px;}
+    button:hover{background:#0ea5e9;}
+    table{width:90%;margin:0 auto;border-collapse:collapse;background:#1e293b;border-radius:6px;overflow:hidden;}
+    th,td{padding:12px 15px;text-align:center;}
+    th{background-color:#111827;color:#fff;font-weight:bold;}
+    tr:nth-child(even){background:#0f172a;}
+    tr:hover{background-color:#334155;cursor:pointer;}
+    .positive{color:#22c55e;} .negative{color:#ef4444;}
+    p{text-align:center;color:#94a3b8;margin-top:15px;}
+  </style>
+  <script>setTimeout(()=>{location.reload();},30000);</script>
+</head>
+<body>
+  <div class="topbar">
+    <a href="/market/" class="brand">Coin Market</a>
+    {% if logged_in %}
+      <button class="login-btn" id="balanceBadge" onclick="toggleWallet()">💰 Balance: $0.00</button>
+    {% else %}
+      <a href="/login/"><button class="login-btn">Login</button></a>
+    {% endif %}
+  </div>
+
+  <h1>Live Crypto Market ({{ vs_currency|upper }})</h1>
+
+  <form method="get" action="/market/">
+    <input type="text" name="q" placeholder="Search coin (e.g., bitcoin)" value="{{ query }}">
+    <select name="currency">
+      <option value="USD" {% if vs_currency == "USD" %}selected{% endif %}>USD</option>
+      <option value="INR" {% if vs_currency == "INR" %}selected{% endif %}>INR</option>
+    </select>
+    <button type="submit">Apply</button>
+  </form>
+
+  {% if coins %}
+  <table>
+    <tr>
+      <th>#</th><th>Coin</th><th>Price ({{ vs_currency|upper }})</th><th>24h Change (%)</th><th>7-Day Trend</th>
+    </tr>
+    {% for coin in coins %}
+    <tr onclick="window.location.href='/coin/{{ coin.id }}/?currency={{ vs_currency }}'">
+      <td>{{ forloop.counter }}</td>
+      <td><img src="{{ coin.image }}" width="20" style="vertical-align:middle;margin-right:6px;">{{ coin.name }} ({{ coin.symbol|upper }})</td>
+      <td>{% if vs_currency == "INR" %}₹{{ coin.current_price|floatformat:2 }}{% else %}${{ coin.current_price|floatformat:2 }}{% endif %}</td>
+      <td class="{% if coin.price_change_percentage_24h >= 0 %}positive{% else %}negative{% endif %}">{{ coin.price_change_percentage_24h|floatformat:2 }}%</td>
+      <td>
+        {% if coin.sparkline_in_7d %}
+          <img src="https://quickchart.io/chart?c=%7Btype:'sparkline',data:%7Bdatasets:%5B%7Bdata:{{ coin.sparkline_in_7d.price|safe }}%7D%5D%7D%7D" height="40" width="120">
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>No coins match your search.</p>
+  {% endif %}
+  <p>Auto-refreshes every 30 seconds</p>
+
+  <!-- ===== Wallet Modal ===== -->
+  <div id="walletModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);justify-content:center;align-items:center;z-index:999;">
+    <div style="background:#1e293b;padding:40px;border-radius:12px;width:620px;text-align:center;">
+      <h2 style="color:#38bdf8;margin-bottom:20px;">User Dashboard</h2>
+      <p>Welcome, <strong>{{ username }}</strong> 👋</p>
+      <p>Wallet Balance: <strong style="color:#38bdf8;">₹0.00 / $0.00</strong></p>
+      <p style="font-size:15px;color:#94a3b8;margin-bottom:20px;">(No funds in wallet)</p>
+      <button id="toggleCurrency" style="background:#334155;border:none;color:#fff;padding:8px 15px;border-radius:6px;cursor:pointer;">Switch to USD</button>
+
+      <div style="margin:20px 0;">
+        <button onclick="showTryMessage('Deposit')" style="background:#38bdf8;border:none;color:#000;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin:0 10px;">Deposit</button>
+        <button onclick="showTryMessage('Withdraw')" style="background:#f87171;border:none;color:#fff;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin:0 10px;">Withdraw</button>
+        <button onclick="toggleTransactions()" style="background:#22c55e;border:none;color:#000;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin:0 10px;">Transactions</button>
+      </div>
+
+      <div style="background:#0f172a;border-radius:8px;padding:20px;text-align:left;margin-bottom:25px;">
+        <h3 style="color:#38bdf8;text-align:center;margin-bottom:15px;">Your Holdings</h3>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr style="color:#94a3b8;text-align:left;">
+            <th style="padding:8px;">Coin</th><th style="padding:8px;">Amount</th><th style="padding:8px;">Est. Value</th><th style="padding:8px;">Action</th>
+          </tr>
+          <tr><td>Solana (SOL)</td><td>0.1159</td><td id="val-sol">...</td><td><button onclick="showTryMessage('Transfer SOL')" style="background:#334155;border:none;color:#fff;padding:5px 10px;border-radius:5px;cursor:pointer;">Transfer</button></td></tr>
+          <tr><td>Dogecoin (DOGE)</td><td>90.0000</td><td id="val-doge">...</td><td><button onclick="showTryMessage('Transfer DOGE')" style="background:#334155;border:none;color:#fff;padding:5px 10px;border-radius:5px;cursor:pointer;">Transfer</button></td></tr>
+          <tr><td>Ethereum (ETH)</td><td>0.0043</td><td id="val-eth">...</td><td><button onclick="showTryMessage('Transfer ETH')" style="background:#334155;border:none;color:#fff;padding:5px 10px;border-radius:5px;cursor:pointer;">Transfer</button></td></tr>
+        </table>
+        <p style="text-align:center;margin-top:15px;">Estimated Total: <strong id="estTotal" style="color:#38bdf8;">₹0.00</strong></p>
+      </div>
+
+      <div id="walletMessage" style="color:#f87171;font-weight:bold;margin-bottom:15px;min-height:24px;"></div>
+      <div>
+        <a href="/logout/"><button style="background:#ef4444;border:none;color:#fff;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin-right:10px;">Logout</button></a>
+        <button onclick="toggleWallet()" style="background:#38bdf8;border:none;color:#000;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Transactions Popup ===== -->
+  <div id="txModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);justify-content:center;align-items:center;z-index:1000;">
+    <div style="background:#1e293b;padding:30px;border-radius:10px;width:500px;text-align:center;">
+      <h3 style="color:#38bdf8;margin-bottom:20px;">Transaction History</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="color:#94a3b8;"><th>Date</th><th>Amount</th><th>Type</th></tr>
+        <tr><td>29/10/2025</td><td>₹1500</td><td>Deposit</td></tr>        
+        <tr><td>29/10/2025</td><td>₹2000</td><td>Deposit</td></tr>
+        <tr><td>29/10/2025</td><td>₹1499.54</td><td>Deposit</td></tr>
+        <tr><td>28/10/2025</td><td>₹5750</td><td>Withdraw</td></tr>
+        <tr><td>27/10/2025</td><td>₹2500</td><td>Deposit</td></tr>
+        <tr><td>26/10/2025</td><td>₹2000</td><td>Deposit</td></tr>
+        <tr><td>22/10/2025</td><td>₹1200</td><td>Deposit</td></tr></table>
+      <button onclick="toggleTransactions()" style="margin-top:20px;padding:8px 15px;border:none;border-radius:5px;background:#38bdf8;color:#000;font-weight:bold;">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const HOLDINGS={solana:0.1159,dogecoin:90,ethereum:0.0043};
+    async function refreshHoldings(currency){
+      const cur=(currency||'INR').toUpperCase();
+      const vs=cur.toLowerCase();
+      const res=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=solana,dogecoin,ethereum&vs_currencies=${vs}`);
+      const data=await res.json();
+      const sym=cur==='INR'?'₹':'$';
+      const ps=data.solana?.[vs]||0, pd=data.dogecoin?.[vs]||0, pe=data.ethereum?.[vs]||0;
+      const v1=HOLDINGS.solana*ps, v2=HOLDINGS.dogecoin*pd, v3=HOLDINGS.ethereum*pe;
+      const total=v1+v2+v3;
+      document.getElementById('val-sol').textContent=sym+v1.toFixed(2);
+      document.getElementById('val-doge').textContent=sym+v2.toFixed(2);
+      document.getElementById('val-eth').textContent=sym+v3.toFixed(2);
+      document.getElementById('estTotal').textContent=sym+total.toFixed(2);
+      const badge=document.getElementById('balanceBadge');
+      if(badge)badge.textContent=`Balance: ${sym}0.00`;
+    }
+    function toggleWallet(){const m=document.getElementById('walletModal');m.style.display=m.style.display==='flex'?'none':'flex';refreshHoldings(currentCurrency);}
+    function toggleTransactions(){const m=document.getElementById('txModal');m.style.display=m.style.display==='flex'?'none':'flex';}
+    function showTryMessage(a){document.getElementById('walletMessage').innerText=`❌ ${a} not available.`;}
+    let currentCurrency='INR';
+    document.getElementById('toggleCurrency').addEventListener('click',()=>{currentCurrency=currentCurrency==='INR'?'USD':'INR';document.getElementById('toggleCurrency').innerText=currentCurrency==='INR'?'Switch to USD':'Switch to INR';refreshHoldings(currentCurrency);});
+    document.addEventListener('DOMContentLoaded',()=>{refreshHoldings('INR');});
+  </script>
+</body>
+</html>

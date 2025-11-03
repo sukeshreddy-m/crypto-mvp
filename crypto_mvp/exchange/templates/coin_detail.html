@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ coin.name }} | Coin Market</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #0f172a; color: #fff; margin: 0; padding: 0; }
+    .topbar { background: #1e293b; display: flex; justify-content: space-between; align-items: center; padding: 15px 40px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 10; }
+    .brand { font-size: 22px; font-weight: bold; color: #38bdf8; text-decoration: none; }
+    .header-btn { background: #38bdf8; border: none; color: #000; padding: 8px 18px; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+    .header-btn:hover { background: #0ea5e9; }
+    .main-wrapper { display: flex; justify-content: center; align-items: stretch; padding: 40px 5%; gap: 40px; }
+    .chart-container { flex: 2; height: 400px; background: #0f172a; border-radius: 10px; }
+    .chart-container canvas { width: 100% !important; height: 100% !important; display: block; }
+    .buy-box { flex: 1; background: #1e293b; padding: 24px; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; height: 400px; box-shadow: 0 0 15px rgba(0, 0, 0, 0.3); }
+    .buy-header { text-align: center; color: #38bdf8; font-size: 20px; margin-bottom: 10px; }
+    .buy-box label { display: block; margin-top: 20px; font-size: 15px; color: #cbd5e1; }
+    .buy-box input, .buy-box select { width: 100%; padding: 12px; margin-top: 8px; border-radius: 6px; border: none; background: #0f172a; color: white; font-size: 15px; }
+    .total-box { background: #334155; padding: 15px; border-radius: 6px; text-align: center; margin-top: 25px; font-size: 17px; font-weight: bold; }
+    .buy-btn { width: 100%; background: #38bdf8; color: black; border: none; padding: 14px; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 25px; font-weight: bold; transition: 0.3s; }
+    .buy-btn:hover { background: #0ea5e9; }
+    .message { text-align: center; margin-top: 15px; color: #f87171; font-weight: bold; min-height: 22px; }
+    .btn-group { text-align: center; margin: 20px 0 30px; }
+    .btn-group button { background: #1e293b; color: #fff; border: none; padding: 8px 14px; margin: 0 3px; border-radius: 5px; cursor: pointer; transition: 0.2s; }
+    .btn-group button:hover { background: #334155; }
+    .btn-group button.active { background: #38bdf8; color: #000; }
+    a { color: #38bdf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <a href="/market/" class="brand">Coin Market</a>
+    {% if logged_in %}
+      <button class="header-btn" id="balanceBadge" onclick="toggleWallet()">💰 Balance: $0.00</button>
+    {% else %}
+      <a href="/login/"><button class="header-btn">Login</button></a>
+    {% endif %}
+  </div>
+
+  <div class="btn-group">
+    <a href="?days=1&currency={{ vs_currency }}"><button {% if days == "1" %}class="active"{% endif %}>1D</button></a>
+    <a href="?days=7&currency={{ vs_currency }}"><button {% if days == "7" %}class="active"{% endif %}>1W</button></a>
+    <a href="?days=30&currency={{ vs_currency }}"><button {% if days == "30" %}class="active"{% endif %}>1M</button></a>
+    <a href="?days=180&currency={{ vs_currency }}"><button {% if days == "180" %}class="active"{% endif %}>6M</button></a>
+    <a href="?days=365&currency={{ vs_currency }}"><button {% if days == "365" %}class="active"{% endif %}>1Y</button></a>
+    <a href="?days=max&currency={{ vs_currency }}"><button {% if days == "max" %}class="active"{% endif %}>ALL</button></a>
+  </div>
+
+  <div class="main-wrapper">
+    <div class="chart-container"><canvas id="priceChart"></canvas></div>
+    <div class="buy-box">
+      <div>
+        <div class="buy-header">Buy {{ coin.name }}</div>
+        <label>Amount ({{ coin.symbol|upper }})</label>
+        <input type="number" id="btcAmount" value="1">
+        <label>Currency</label>
+        <select id="currencySelect">
+          <option value="USD" {% if vs_currency == "USD" %}selected{% endif %}>USD</option>
+          <option value="INR" {% if vs_currency == "INR" %}selected{% endif %}>INR</option>
+        </select>
+        <div class="total-box">Total Required: <span id="totalValue">0</span></div>
+      </div>
+      <div>
+        <button class="buy-btn" onclick="buyNow()">Buy Now</button>
+        <div id="messageBox" class="message"></div>
+      </div>
+    </div>
+  </div>
+
+  <p style="text-align:center;"><a href="/market/">← Back to Market</a></p>
+
+  {% if vs_currency == "INR" %}
+    <script>var currencySymbol = "₹"; var currentPrice = {{ coin.market_data.current_price.inr }};</script>
+  {% else %}
+    <script>var currencySymbol = "$"; var currentPrice = {{ coin.market_data.current_price.usd }};</script>
+  {% endif %}
+
+  <script>
+    // Chart.js
+    const rawData = {{ chart_data|safe }};
+    const prices = rawData.prices || [];
+    const labels = prices.map(p => new Date(p[0]).toLocaleString());
+    const dataPoints = prices.map(p => p[1]);
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    const g = ctx.createLinearGradient(0,0,0,400);
+    g.addColorStop(0,'rgba(56,189,248,0.4)');
+    g.addColorStop(1,'rgba(56,189,248,0)');
+    new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'{{ coin.name }}',data:dataPoints,borderColor:'#38bdf8',backgroundColor:g,fill:true,borderWidth:2,pointRadius:0,tension:0.3}]},options:{plugins:{legend:{display:false}}}});
+
+    const btcInput=document.getElementById('btcAmount');
+    const totalBox=document.getElementById('totalValue');
+    const currencySelect=document.getElementById('currencySelect');
+    const messageBox=document.getElementById('messageBox');
+
+    function updateTotal(){
+      const a=parseFloat(btcInput.value)||0;
+      const total=a*currentPrice;
+      const s=currencySelect.value==="INR"?"₹":"$";
+      totalBox.innerText=s+total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+      messageBox.innerText="";
+    }
+    btcInput.addEventListener('input',updateTotal);
+    currencySelect.addEventListener('change',()=>{updateTotal();refreshHoldings(currencySelect.value);});
+    function buyNow(){messageBox.innerText="❌ Please try again later.";}
+    window.addEventListener("DOMContentLoaded",updateTotal);
+  </script>
+
+  <!-- Wallet Modal -->
+  <div id="walletModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);justify-content:center;align-items:center;z-index:999;">
+    <div style="background:#1e293b;padding:40px;border-radius:12px;width:600px;text-align:center;">
+      <h2 style="color:#38bdf8;margin-bottom:20px;">User Dashboard</h2>
+      <p style="font-size:18px;">Welcome, <strong>{{ username }}</strong> 👋</p>
+      <p style="font-size:17px;margin-bottom:5px;">Wallet Balance: <strong style="color:#38bdf8;">₹0.00 / $0.00</strong></p>
+      <p style="font-size:15px;color:#94a3b8;margin-bottom:25px;">(No funds in wallet)</p>
+
+      <button id="toggleCurrency" style="background:#334155;border:none;color:#fff;padding:8px 15px;border-radius:6px;cursor:pointer;">Switch to USD</button>
+
+      <div style="margin:20px 0;">
+        <button onclick="showTryMessage('Deposit')" style="background:#38bdf8;border:none;color:#000;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin:0 10px;">Deposit</button>
+        <button onclick="showTryMessage('Withdraw')" style="background:#f87171;border:none;color:#fff;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin:0 10px;">Withdraw</button>
+        <button onclick="toggleTransactions()" style="background:#22c55e;border:none;color:#000;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin:0 10px;">Transactions</button>
+      </div>
+
+      <div style="background:#0f172a;border-radius:8px;padding:20px;text-align:left;margin-bottom:25px;">
+        <h3 style="color:#38bdf8;text-align:center;margin-bottom:15px;">Your Holdings</h3>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr style="color:#94a3b8;text-align:left;">
+            <th style="padding:8px;">Coin</th><th style="padding:8px;">Amount</th><th style="padding:8px;">Est. Value</th>
+          </tr>
+          <tr style="border-top:1px solid #334155;"><td style="padding:8px;">Solana (SOL)</td><td style="padding:8px;">0.1159</td><td id="val-sol" style="padding:8px;">...</td></tr>
+          <tr style="border-top:1px solid #334155;"><td style="padding:8px;">Dogecoin (DOGE)</td><td style="padding:8px;">90.0000</td><td id="val-doge" style="padding:8px;">...</td></tr>
+          <tr style="border-top:1px solid #334155;"><td style="padding:8px;">Ethereum (ETH)</td><td style="padding:8px;">0.0043</td><td id="val-eth" style="padding:8px;">...</td></tr>
+        </table>
+        <p style="text-align:center;margin-top:15px;">Estimated Total: <strong id="estTotal" style="color:#38bdf8;">₹0.00</strong></p>
+      </div>
+
+      <div id="walletMessage" style="color:#f87171;font-weight:bold;margin-bottom:15px;min-height:24px;"></div>
+      <div><a href="/logout/"><button style="background:#ef4444;border:none;color:#fff;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin-right:10px;">Logout</button></a>
+      <button onclick="toggleWallet()" style="background:#38bdf8;border:none;color:#000;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Transactions Popup -->
+  <div id="txModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);justify-content:center;align-items:center;z-index:1000;">
+    <div style="background:#1e293b;padding:30px;border-radius:10px;width:500px;text-align:center;">
+      <h3 style="color:#38bdf8;margin-bottom:20px;">Transaction History</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="color:#94a3b8;"><th>Date</th><th>Amount</th><th>Type</th></tr>
+        <tr><td>29/10/2025</td><td>₹1500</td><td>Deposit</td></tr>        
+        <tr><td>29/10/2025</td><td>₹2000</td><td>Deposit</td></tr>
+        <tr><td>29/10/2025</td><td>₹1499.54</td><td>Deposit</td></tr>
+        <tr><td>28/10/2025</td><td>₹5750</td><td>Withdraw</td></tr>
+        <tr><td>27/10/2025</td><td>₹2500</td><td>Deposit</td></tr>
+        <tr><td>26/10/2025</td><td>₹2000</td><td>Deposit</td></tr>
+        <tr><td>22/10/2025</td><td>₹1200</td><td>Deposit</td></tr>
+        </table>
+      <button onclick="toggleTransactions()" style="margin-top:20px;padding:8px 15px;border:none;border-radius:5px;background:#38bdf8;color:#000;font-weight:bold;">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const HOLDINGS={solana:0.1159,dogecoin:90,ethereum:0.0043};
+    async function refreshHoldings(currency){
+      const cur=(currency||'INR').toUpperCase();
+      const vs=cur.toLowerCase();
+      const res=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=solana,dogecoin,ethereum&vs_currencies=${vs}`);
+      const data=await res.json();
+      const sym=cur==='INR'?'₹':'$';
+      const ps=data.solana?.[vs]||0, pd=data.dogecoin?.[vs]||0, pe=data.ethereum?.[vs]||0;
+      const v1=HOLDINGS.solana*ps, v2=HOLDINGS.dogecoin*pd, v3=HOLDINGS.ethereum*pe;
+      const total=v1+v2+v3;
+      document.getElementById('val-sol').textContent=sym+v1.toFixed(2);
+      document.getElementById('val-doge').textContent=sym+v2.toFixed(2);
+      document.getElementById('val-eth').textContent=sym+v3.toFixed(2);
+      document.getElementById('estTotal').textContent=sym+total.toFixed(2);
+      const badge=document.getElementById('balanceBadge');
+      if(badge)badge.textContent=`Balance: ${sym}0.00`;
+    }
+    function toggleWallet(){const m=document.getElementById('walletModal');m.style.display=m.style.display==='flex'?'none':'flex';refreshHoldings(currentCurrency);}
+    function toggleTransactions(){const m=document.getElementById('txModal');m.style.display=m.style.display==='flex'?'none':'flex';}
+    function showTryMessage(a){document.getElementById('walletMessage').innerText=`❌ ${a} not available.`;}
+    let currentCurrency='INR';
+    document.getElementById('toggleCurrency').addEventListener('click',()=>{
+      currentCurrency=currentCurrency==='INR'?'USD':'INR';
+      document.getElementById('toggleCurrency').innerText=currentCurrency==='INR'?'Switch to USD':'Switch to INR';
+      refreshHoldings(currentCurrency);
+    });
+    document.addEventListener('DOMContentLoaded',()=>{refreshHoldings('INR');});
+  </script>
+</body>
+</html>
