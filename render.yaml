@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: coinmarket
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate --noinput"
+    startCommand: "gunicorn crypto_mvp.crypto_mvp.wsgi:application"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: crypto_mvp.settings
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: PYTHON_VERSION
+        value: 3.11.6
